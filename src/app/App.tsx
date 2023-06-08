@@ -14,12 +14,15 @@ import Container from '@mui/material/Container';
 import { Menu } from '@mui/icons-material';
 import {CircularProgress, LinearProgress} from "@mui/material";
 import {useAppSelector} from "./store";
+import {ErrorSnackbar} from "../components/errorSnackBar/ErrorSnackBar";
 
 
 function App() {
     const status = useAppSelector((state) => state.app.status)
+    const error = useAppSelector((state) => state.app.error)
     return (
         <div className="App">
+            <ErrorSnackbar/>
             <AppBar position="static">
                 <Toolbar>
                     <IconButton edge="start" color="inherit" aria-label="menu">
