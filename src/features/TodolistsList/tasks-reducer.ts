@@ -2,9 +2,18 @@ import {AddTodolistActionType, RemoveTodolistActionType, SetTodolistsActionType}
 import {TaskPriorities, TaskStatuses, TaskType, todoListsAPI, UpdateTaskModelType} from '../../api/todo-lists-a-p-i'
 import {Dispatch} from 'redux'
 import {AppRootStateType} from '../../app/store'
-import {setStatusAC, setStatusType} from "../../app/app-reducer";
+import {setErrorAC, setErrorType, setStatusAC, setStatusType} from "../../app/app-reducer";
+import {Simulate} from "react-dom/test-utils";
+import error = Simulate.error;
+import {handleServerNetworkError} from "../../utils/errorUtils";
 
 const initialState: TasksStateType = {}
+
+enum ResultCode {
+    OK = 0,
+    Error = 1,
+    Captcha = 10
+}
 
 export const tasksReducer = (state: TasksStateType = initialState, action: ActionsType): TasksStateType => {
     switch (action.type) {
@@ -72,10 +81,22 @@ export const addTaskTC = (title: string, todolistId: string) => (dispatch: Dispa
     dispatch(setStatusAC('loading'))
     todoListsAPI.createTask(todolistId, title)
         .then(res => {
-            const task = res.data.data.item
-            const action = addTaskAC(task)
-            dispatch(action)
+            if (res.data.resultCode === ResultCode.OK) {
+                const task = res.data.data.item
+                const action = addTaskAC(task)
+                dispatch(action)
+            } else {
+                if (res.data.messages.length) {
+                    dispatch(setErrorAC(res.data.messages[0]))
+                } else {
+                    dispatch(setErrorAC('Обратитесь к администратору сайта.'))
+                }
+            }
+
             dispatch(setStatusAC('succeeded'))
+        })
+        .catch((error) => {
+            handleServerNetworkError(dispatch, error)
         })
 }
 export const updateTaskTC = (taskId: string, domainModel: UpdateDomainTaskModelType, todolistId: string) =>
@@ -101,9 +122,21 @@ export const updateTaskTC = (taskId: string, domainModel: UpdateDomainTaskModelT
 
         todoListsAPI.updateTask(todolistId, taskId, apiModel)
             .then(res => {
-                const action = updateTaskAC(taskId, domainModel, todolistId)
-                dispatch(action)
-                dispatch(setStatusAC('succeeded'))
+                if (res.data.resultCode === ResultCode.OK) {
+                    const action = updateTaskAC(taskId, domainModel, todolistId)
+                    dispatch(action)
+                    dispatch(setStatusAC('succeeded'))
+                } else {
+                    if (res.data.messages.length) {
+                        dispatch(setErrorAC(res.data.messages[0]))
+                    } else {
+                        dispatch(setErrorAC('Обратитесь к администратору.'))
+                    }
+                }
+                dispatch(setStatusAC('idle'))
+            })
+            .catch((error) => {
+                handleServerNetworkError(dispatch, error)
             })
     }
 
@@ -128,3 +161,4 @@ type ActionsType =
     | SetTodolistsActionType
     | ReturnType<typeof setTasksAC>
     | setStatusType
+    | setErrorType
