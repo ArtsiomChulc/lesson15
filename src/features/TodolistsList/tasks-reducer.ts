@@ -5,7 +5,8 @@ import {AppRootStateType} from '../../app/store'
 import {setErrorAC, setErrorType, setStatusAC, setStatusType} from "../../app/app-reducer";
 import {Simulate} from "react-dom/test-utils";
 import error = Simulate.error;
-import {handleServerNetworkError} from "../../utils/errorUtils";
+import {handleServerAppError, handleServerNetworkError} from "../../utils/errorUtils";
+import axios, {AxiosError} from "axios";
 
 const initialState: TasksStateType = {}
 
@@ -77,27 +78,38 @@ export const removeTaskTC = (taskId: string, todolistId: string) => (dispatch: D
             dispatch(setStatusAC('succeeded'))
         })
 }
-export const addTaskTC = (title: string, todolistId: string) => (dispatch: Dispatch<ActionsType>) => {
+export const addTaskTC = (title: string, todolistId: string) => async (dispatch: Dispatch<ActionsType>) => {
     dispatch(setStatusAC('loading'))
-    todoListsAPI.createTask(todolistId, title)
-        .then(res => {
-            if (res.data.resultCode === ResultCode.OK) {
-                const task = res.data.data.item
-                const action = addTaskAC(task)
-                dispatch(action)
-            } else {
-                if (res.data.messages.length) {
-                    dispatch(setErrorAC(res.data.messages[0]))
-                } else {
-                    dispatch(setErrorAC('Обратитесь к администратору сайта.'))
-                }
-            }
-
+    try {
+        const res = await todoListsAPI.createTask(todolistId, title)
+        if (res.data.resultCode === ResultCode.OK) {
+            const task = res.data.data.item
+            const action = addTaskAC(task)
+            dispatch(action)
             dispatch(setStatusAC('succeeded'))
-        })
-        .catch((error) => {
+        } else {
+            handleServerAppError(res.data, dispatch)
+        }
+    } catch (err) {
+        if (axios.isAxiosError<{message: string}>(err)) {
+            const error = err.response ? err.response.data.message : err.message
             handleServerNetworkError(dispatch, error)
-        })
+        }
+    }
+
+        // .then(res => {
+        //     if (res.data.resultCode === ResultCode.OK) {
+        //         const task = res.data.data.item
+        //         const action = addTaskAC(task)
+        //         dispatch(action)
+        //         dispatch(setStatusAC('succeeded'))
+        //     } else {
+        //         handleServerAppError(res.data, dispatch)
+        //     }
+        // })
+        // .catch((error) => {
+        //     handleServerNetworkError(dispatch, error)
+        // })
 }
 export const updateTaskTC = (taskId: string, domainModel: UpdateDomainTaskModelType, todolistId: string) =>
     (dispatch: Dispatch<ActionsType>, getState: () => AppRootStateType) => {
@@ -127,16 +139,12 @@ export const updateTaskTC = (taskId: string, domainModel: UpdateDomainTaskModelT
                     dispatch(action)
                     dispatch(setStatusAC('succeeded'))
                 } else {
-                    if (res.data.messages.length) {
-                        dispatch(setErrorAC(res.data.messages[0]))
-                    } else {
-                        dispatch(setErrorAC('Обратитесь к администратору.'))
-                    }
+                    handleServerAppError(res.data, dispatch)
                 }
-                dispatch(setStatusAC('idle'))
             })
-            .catch((error) => {
-                handleServerNetworkError(dispatch, error)
+            .catch((error: AxiosError<{message: string}>) => {
+                const err = error.response ? error.response.data.message : error.message
+                handleServerNetworkError(dispatch, err)
             })
     }
 
